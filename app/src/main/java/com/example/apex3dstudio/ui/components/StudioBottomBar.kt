@@ -25,19 +25,20 @@ fun StudioBottomBar(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        StudioButton(
+        StudioBarButton(
+            label = "Reset",
             icon = Icons.Default.Replay,
-            text = "Reset",
             onClick = onResetClick
         )
 
-        StudioButton(
+        StudioBarButton(
+            label = if (isPlaying) "Pause" else "Play",
             icon = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-            text = if (isPlaying) "Pause" else "Play",
+            isActive = isPlaying,
             onClick = onPlayPauseClick
         )
     }

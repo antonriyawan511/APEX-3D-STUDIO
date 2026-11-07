@@ -26,31 +26,32 @@ fun StudioTopBar(
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        StudioButton(
-            icon = Icons.Default.FolderOpen,
-            text = "Open",
-            onClick = onOpenClick
-        )
-
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            StudioButton(
-                icon = Icons.Default.Videocam,
-                text = if (hasCamera) "Camera" else "Orbit",
-                onClick = onCameraClick
+            StudioBarButton(
+                label = "Open",
+                icon = Icons.Default.FolderOpen,
+                onClick = onOpenClick
             )
 
-            StudioButton(
+            StudioBarButton(
+                label = "Settings",
                 icon = Icons.Default.Settings,
-                text = "Settings",
                 onClick = onSettingsClick
             )
         }
+
+        StudioBarButton(
+            label = if (hasCamera) "Camera" else "Orbit",
+            icon = Icons.Default.Videocam,
+            isActive = hasCamera,
+            onClick = onCameraClick
+        )
     }
 }
