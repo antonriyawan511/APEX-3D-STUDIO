@@ -19,7 +19,7 @@ import java.nio.channels.FileChannel
 class StudioViewer(val surfaceView: SurfaceView) {
 
     val modelViewer: ModelViewer = ModelViewer(surfaceView)
-    val orbitController: StudioOrbitController = StudioOrbitController(surfaceView)
+    val orbitController: StudioOrbitController = StudioOrbitController(surfaceView, surfaceView.context)
 
     private val orbitCameraEntity: Int = EntityManager.get().create()
     private val orbitCamera: Camera = modelViewer.engine.createCamera(orbitCameraEntity)

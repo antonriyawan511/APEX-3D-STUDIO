@@ -17,7 +17,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.apex3dstudio.state.GestureSensitivity
 import com.example.apex3dstudio.state.StudioState
+import com.example.apex3dstudio.ui.components.SettingsDialog
 import com.example.apex3dstudio.ui.components.StudioBottomBar
 import com.example.apex3dstudio.ui.components.StudioTopBar
 import com.example.apex3dstudio.viewer.StudioViewer
@@ -30,6 +32,8 @@ fun StudioScreen(
     val context = LocalContext.current
     var studioViewer by remember { mutableStateOf<StudioViewer?>(null) }
     var state by remember { mutableStateOf(StudioState()) }
+    var sensitivity by remember { mutableStateOf(GestureSensitivity()) }
+    var showSettings by remember { mutableStateOf(false) }
 
     val choreographer = remember { Choreographer.getInstance() }
     val frameCallback = remember {
@@ -70,6 +74,7 @@ fun StudioScreen(
             factory = { ctx ->
                 SurfaceView(ctx).apply {
                     val viewer = StudioViewer(this)
+                    viewer.orbitController.sensitivity = sensitivity
                     studioViewer = viewer
                     setOnTouchListener { _, event -> viewer.onTouchEvent(event) }
 
@@ -95,6 +100,7 @@ fun StudioScreen(
                 val isBlender = studioViewer?.toggleCamera() ?: false
                 state = state.copy(hasCamera = isBlender)
             },
+            onSettingsClick = { showSettings = true },
             hasCamera = state.hasCamera,
             modifier = Modifier.align(Alignment.TopCenter)
         )
@@ -108,5 +114,32 @@ fun StudioScreen(
             },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+
+        if (showSettings) {
+            SettingsDialog(
+                sensitivity = sensitivity,
+                onOrbitChanged = {
+                    sensitivity = sensitivity.copy(orbit = it)
+                    studioViewer?.orbitController?.sensitivity = sensitivity
+                },
+                onPanChanged = {
+                    sensitivity = sensitivity.copy(pan = it)
+                    studioViewer?.orbitController?.sensitivity = sensitivity
+                },
+                onZoomChanged = {
+                    sensitivity = sensitivity.copy(zoom = it)
+                    studioViewer?.orbitController?.sensitivity = sensitivity
+                },
+                onTwistOrbitChanged = {
+                    sensitivity = sensitivity.copy(twistOrbit = it)
+                    studioViewer?.orbitController?.sensitivity = sensitivity
+                },
+                onReset = {
+                    sensitivity = GestureSensitivity()
+                    studioViewer?.orbitController?.sensitivity = sensitivity
+                },
+                onDismiss = { showSettings = false }
+            )
+        }
     }
 }
