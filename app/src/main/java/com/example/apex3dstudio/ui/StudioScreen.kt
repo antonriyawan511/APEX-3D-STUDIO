@@ -13,11 +13,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.apex3dstudio.state.StudioState
-import com.example.apex3dstudio.ui.components.ViewerControls
+import com.example.apex3dstudio.ui.components.StudioBottomBar
+import com.example.apex3dstudio.ui.components.StudioTopBar
 import com.example.apex3dstudio.viewer.StudioViewer
 import java.io.File
 
@@ -87,10 +89,24 @@ fun StudioScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        ViewerControls(
+        StudioTopBar(
+            onOpenClick = { launcher.launch(arrayOf("*/*")) },
+            onCameraClick = {
+                val isBlender = studioViewer?.toggleCamera() ?: false
+                state = state.copy(hasCamera = isBlender)
+            },
+            hasCamera = state.hasCamera,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
+
+        StudioBottomBar(
             isPlaying = state.isPlaying,
-            onOpenGlbClick = { launcher.launch(arrayOf("*/*")) },
-            onPlayPauseClick = { state = state.copy(isPlaying = !state.isPlaying) }
+            onPlayPauseClick = { state = state.copy(isPlaying = !state.isPlaying) },
+            onResetClick = {
+                studioViewer?.resetTime()
+                state = state.copy(currentTime = 0f)
+            },
+            modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
 }

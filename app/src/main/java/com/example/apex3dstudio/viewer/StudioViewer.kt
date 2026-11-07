@@ -17,6 +17,8 @@ class StudioViewer(surfaceView: SurfaceView) {
     val modelViewer: ModelViewer = ModelViewer(surfaceView)
     var animTime: Float = 0f
         private set
+    var isBlenderCamera: Boolean = true
+        private set
     private var lastNanos: Long = 0L
 
     fun step(nanos: Long, isPlaying: Boolean, onProgress: (Float) -> Unit) {
@@ -63,10 +65,12 @@ class StudioViewer(surfaceView: SurfaceView) {
 
         val cameras = modelViewer.asset?.cameraEntities
         val hasCamera = cameras != null && cameras.isNotEmpty()
+        isBlenderCamera = hasCamera
+
         if (!hasCamera) {
             modelViewer.transformToUnitCube()
         } else {
-            modelViewer.view.camera = modelViewer.engine.getCameraComponent(cameras!![0])
+            modelViewer.view.camera = modelViewer.engine.getCameraComponent(cameras[0])
         }
 
         animTime = 0f
@@ -75,6 +79,30 @@ class StudioViewer(surfaceView: SurfaceView) {
         } ?: 0f
 
         onLoaded(duration, hasCamera)
+    }
+
+    fun toggleCamera(): Boolean {
+        val cameras = modelViewer.asset?.cameraEntities
+        if (cameras == null || cameras.isEmpty()) return false
+
+        isBlenderCamera = !isBlenderCamera
+        if (isBlenderCamera) {
+            modelViewer.view.camera = modelViewer.engine.getCameraComponent(cameras[0])
+        } else {
+            modelViewer.view.camera = modelViewer.camera
+            modelViewer.transformToUnitCube()
+        }
+        return isBlenderCamera
+    }
+
+    fun resetTime() {
+        animTime = 0f
+        modelViewer.animator?.let {
+            if (it.animationCount > 0) {
+                it.applyAnimation(0, 0f)
+                it.updateBoneMatrices()
+            }
+        }
     }
 
     fun onTouchEvent(event: MotionEvent): Boolean {
