@@ -20,7 +20,7 @@ import kotlin.math.max
 class StudioViewer(val surfaceView: SurfaceView) {
 
     var manipulator: Manipulator = Manipulator.Builder()
-        .viewport(1, 1)
+        .viewport(surfaceView.width.coerceAtLeast(1), surfaceView.height.coerceAtLeast(1))
         .build(Manipulator.Mode.ORBIT)
 
     val modelViewer: ModelViewer = ModelViewer(surfaceView, manipulator = manipulator)
@@ -111,7 +111,9 @@ class StudioViewer(val surfaceView: SurfaceView) {
         modelViewer.destroyModel()
         modelViewer.loadModelGlb(buffer)
 
-        setupOrbitManipulator()
+        surfaceView.post {
+            setupOrbitManipulator()
+        }
 
         val cameras = modelViewer.asset?.cameraEntities
         val hasCamera = cameras != null && cameras.isNotEmpty()
@@ -131,7 +133,22 @@ class StudioViewer(val surfaceView: SurfaceView) {
         onLoaded(duration, hasCamera)
     }
 
-    private fun setupOrbitManipulator() {
+    private fun setModelViewerManipulator(newManipulator: Manipulator) {
+        manipulator = newManipulator
+        gestureDetector.manipulator = newManipulator
+
+        runCatching {
+            val manipField = ModelViewer::class.java.getDeclaredField("cameraManipulator")
+            manipField.isAccessible = true
+            manipField.set(modelViewer, newManipulator)
+
+            val gestureField = ModelViewer::class.java.getDeclaredField("gestureDetector")
+            gestureField.isAccessible = true
+            gestureField.set(modelViewer, com.google.android.filament.utils.GestureDetector(surfaceView, newManipulator))
+        }
+    }
+
+    fun setupOrbitManipulator() {
         val asset = modelViewer.asset ?: return
         val box = asset.boundingBox
         val center = box.center
@@ -144,13 +161,12 @@ class StudioViewer(val surfaceView: SurfaceView) {
 
         val newManipulator = Manipulator.Builder()
             .targetPosition(center[0], center[1], center[2])
-            .orbitHomePosition(center[0], center[1] + maxExtent * 0.3f, center[2] + distance)
+            .orbitHomePosition(center[0], center[1] + maxExtent * 0.2f, center[2] + distance)
             .viewport(viewWidth, viewHeight)
-            .zoomSpeed(distance * 0.05f)
+            .zoomSpeed(distance * 0.04f)
             .build(Manipulator.Mode.ORBIT)
 
-        manipulator = newManipulator
-        gestureDetector.manipulator = newManipulator
+        setModelViewerManipulator(newManipulator)
     }
 
     fun toggleCamera(): Boolean {
@@ -183,7 +199,7 @@ class StudioViewer(val surfaceView: SurfaceView) {
 
     fun destroy() {
         for (light in lights) {
-            modelViewer.engine.destroyEntity(light)
+            runCatching { modelViewer.engine.destroyEntity(light) }
         }
         lights.clear()
         modelViewer.destroyModel()
