@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.view.MotionEvent
 import android.view.SurfaceView
+import com.google.android.filament.utils.Manipulator
 import com.google.android.filament.utils.ModelViewer
 import java.io.File
 import java.io.FileInputStream
@@ -14,7 +15,13 @@ import java.nio.channels.FileChannel
 
 class StudioViewer(surfaceView: SurfaceView) {
 
-    val modelViewer: ModelViewer = ModelViewer(surfaceView)
+    val manipulator: Manipulator = Manipulator.Builder()
+        .viewport(1, 1)
+        .build(Manipulator.Mode.ORBIT)
+
+    val modelViewer: ModelViewer = ModelViewer(surfaceView, manipulator = manipulator)
+    private val gestureDetector = StudioGestureDetector(surfaceView, manipulator)
+
     var animTime: Float = 0f
         private set
     var isBlenderCamera: Boolean = true
@@ -106,8 +113,7 @@ class StudioViewer(surfaceView: SurfaceView) {
     }
 
     fun onTouchEvent(event: MotionEvent): Boolean {
-        modelViewer.onTouchEvent(event)
-        return true
+        return gestureDetector.onTouchEvent(event)
     }
 
     fun destroy() {
