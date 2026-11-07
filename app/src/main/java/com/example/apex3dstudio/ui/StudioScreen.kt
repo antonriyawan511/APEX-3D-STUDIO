@@ -17,10 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.apex3dstudio.state.BottomBarMode
 import com.example.apex3dstudio.state.GestureSensitivity
 import com.example.apex3dstudio.state.StudioState
 import com.example.apex3dstudio.ui.components.SettingsDialog
 import com.example.apex3dstudio.ui.components.StudioBottomBar
+import com.example.apex3dstudio.ui.components.StudioTimelineBar
 import com.example.apex3dstudio.ui.components.StudioTopBar
 import com.example.apex3dstudio.viewer.StudioViewer
 import java.io.File
@@ -106,19 +108,53 @@ fun StudioScreen(
                 state = state.copy(environmentPreset = preset)
                 studioViewer?.applyEnvironment(preset)
             },
+            bottomBarMode = state.bottomBarMode,
+            onToggleBottomBarMode = {
+                state = state.copy(
+                    bottomBarMode = if (state.bottomBarMode == BottomBarMode.TOOLS) BottomBarMode.TIMELINE else BottomBarMode.TOOLS
+                )
+            },
             hasCamera = state.hasCamera,
             modifier = Modifier.align(Alignment.TopCenter)
         )
 
-        StudioBottomBar(
-            isPlaying = state.isPlaying,
-            onPlayPauseClick = { state = state.copy(isPlaying = !state.isPlaying) },
-            onResetClick = {
-                studioViewer?.resetTime()
-                state = state.copy(currentTime = 0f)
-            },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+        if (state.bottomBarMode == BottomBarMode.TIMELINE) {
+            StudioTimelineBar(
+                isPlaying = state.isPlaying,
+                currentTime = state.currentTime,
+                duration = state.duration,
+                onPlayPause = { state = state.copy(isPlaying = !state.isPlaying) },
+                onReset = {
+                    studioViewer?.seekTo(0f)
+                    state = state.copy(currentTime = 0f, isPlaying = false)
+                },
+                onForward1s = {
+                    val target = (state.currentTime + 1.0f).coerceAtMost(state.duration)
+                    studioViewer?.seekTo(target)
+                    state = state.copy(currentTime = target)
+                },
+                onBackward1s = {
+                    val target = (state.currentTime - 1.0f).coerceAtLeast(0f)
+                    studioViewer?.seekTo(target)
+                    state = state.copy(currentTime = target)
+                },
+                onSeek = { targetTime ->
+                    studioViewer?.seekTo(targetTime)
+                    state = state.copy(currentTime = targetTime, isPlaying = false)
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        } else {
+            StudioBottomBar(
+                isPlaying = state.isPlaying,
+                onPlayPauseClick = { state = state.copy(isPlaying = !state.isPlaying) },
+                onResetClick = {
+                    studioViewer?.resetTime()
+                    state = state.copy(currentTime = 0f)
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
 
         if (showSettings) {
             SettingsDialog(

@@ -234,14 +234,20 @@ class StudioViewer(val surfaceView: SurfaceView) {
         return isBlenderCamera
     }
 
-    fun resetTime() {
-        animTime = 0f
-        modelViewer.animator?.let {
-            if (it.animationCount > 0) {
-                it.applyAnimation(0, 0f)
-                it.updateBoneMatrices()
-            }
+    fun seekTo(seconds: Float) {
+        val animator = modelViewer.animator
+        if (animator != null && animator.animationCount > 0) {
+            val duration = animator.getAnimationDuration(0).coerceAtLeast(0.1f)
+            animTime = seconds.coerceIn(0f, duration)
+            animator.applyAnimation(0, animTime)
+            animator.updateBoneMatrices()
+        } else {
+            animTime = 0f
         }
+    }
+
+    fun resetTime() {
+        seekTo(0f)
     }
 
     fun onTouchEvent(event: MotionEvent): Boolean {

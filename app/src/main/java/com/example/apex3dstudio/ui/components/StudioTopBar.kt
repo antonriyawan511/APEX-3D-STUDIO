@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.ViewTimeline
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.apex3dstudio.state.BottomBarMode
 import com.example.apex3dstudio.state.EnvironmentPreset
 import com.example.apex3dstudio.ui.theme.AccentCyan
 import com.example.apex3dstudio.ui.theme.StudioBorder
@@ -40,6 +42,8 @@ fun StudioTopBar(
     onSettingsClick: () -> Unit,
     currentPreset: EnvironmentPreset,
     onPresetSelected: (EnvironmentPreset) -> Unit,
+    bottomBarMode: BottomBarMode,
+    onToggleBottomBarMode: () -> Unit,
     hasCamera: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -103,6 +107,14 @@ fun StudioTopBar(
                     }
                 }
             }
+
+            // Toggle Tools Bar vs Timeline Bar
+            StudioBarButton(
+                label = if (bottomBarMode == BottomBarMode.TIMELINE) "Timeline" else "Timeline",
+                icon = Icons.Default.ViewTimeline,
+                isActive = bottomBarMode == BottomBarMode.TIMELINE,
+                onClick = onToggleBottomBarMode
+            )
         }
 
         StudioBarButton(
