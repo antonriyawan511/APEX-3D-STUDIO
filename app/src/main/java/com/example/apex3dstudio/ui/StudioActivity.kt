@@ -1,15 +1,16 @@
-package com.example.apex3dstudio
+package com.example.apex3dstudio.ui
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import com.example.apex3dstudio.ui.StudioScreen
+import androidx.activity.enableEdgeToEdge
 import com.example.apex3dstudio.ui.theme.APEX3DSTUDIOTheme
 import com.google.android.filament.utils.Utils
 
-class MainActivity : ComponentActivity() {
+class StudioActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         Utils.init()
 

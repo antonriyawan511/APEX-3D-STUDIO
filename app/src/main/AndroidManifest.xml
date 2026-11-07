@@ -16,7 +16,7 @@
         android:hardwareAccelerated="true"
         android:theme="@style/Theme.APEX3DSTUDIO">
         <activity
-            android:name=".MainActivity"
+            android:name=".ui.StudioActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:label="@string/app_name"
