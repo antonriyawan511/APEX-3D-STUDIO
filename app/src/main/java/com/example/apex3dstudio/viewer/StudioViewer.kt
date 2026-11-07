@@ -27,6 +27,7 @@ class StudioViewer(val surfaceView: SurfaceView) {
 
     var animTime: Float = 0f
         private set
+    var isPlaying: Boolean = false
     var isBlenderCamera: Boolean = true
         private set
     private var lastNanos: Long = 0L
@@ -144,7 +145,8 @@ class StudioViewer(val surfaceView: SurfaceView) {
     }
 
     fun step(nanos: Long, isPlaying: Boolean, onProgress: (Float) -> Unit) {
-        if (isPlaying && lastNanos != 0L) {
+        val shouldPlay = isPlaying && this.isPlaying
+        if (shouldPlay && lastNanos != 0L) {
             val dt = ((nanos - lastNanos) / 1_000_000_000.0).toFloat()
             val animator = modelViewer.animator
             if (animator != null && animator.animationCount > 0) {
@@ -212,6 +214,7 @@ class StudioViewer(val surfaceView: SurfaceView) {
             modelViewer.view.camera = modelViewer.engine.getCameraComponent(cameras[0])
         }
 
+        isPlaying = false
         animTime = 0f
         val duration = modelViewer.animator?.let {
             if (it.animationCount > 0) it.getAnimationDuration(0) else 0f
@@ -235,6 +238,7 @@ class StudioViewer(val surfaceView: SurfaceView) {
     }
 
     fun seekTo(seconds: Float) {
+        isPlaying = false
         val animator = modelViewer.animator
         if (animator != null && animator.animationCount > 0) {
             val duration = animator.getAnimationDuration(0).coerceAtLeast(0.1f)
@@ -248,6 +252,7 @@ class StudioViewer(val surfaceView: SurfaceView) {
     }
 
     fun resetTime() {
+        isPlaying = false
         seekTo(0f)
     }
 

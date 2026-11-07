@@ -6,7 +6,7 @@ enum class BottomBarMode {
 }
 
 data class StudioState(
-    val isPlaying: Boolean = true,
+    val isPlaying: Boolean = false,
     val currentTime: Float = 0f,
     val duration: Float = 0f,
     val modelName: String = "",

@@ -67,7 +67,9 @@ fun StudioScreen(
                 state = state.copy(
                     duration = duration,
                     hasCamera = hasCamera,
-                    modelName = uri.lastPathSegment ?: "Custom Model"
+                    modelName = uri.lastPathSegment ?: "Custom Model",
+                    currentTime = 0f,
+                    isPlaying = false
                 )
             }
         }
@@ -89,7 +91,9 @@ fun StudioScreen(
                             state = state.copy(
                                 duration = duration,
                                 hasCamera = hasCamera,
-                                modelName = defaultFile.name
+                                modelName = defaultFile.name,
+                                currentTime = 0f,
+                                isPlaying = false
                             )
                         }
                     }
@@ -125,7 +129,11 @@ fun StudioScreen(
                 isPlaying = state.isPlaying,
                 currentTime = state.currentTime,
                 duration = state.duration,
-                onPlayPause = { state = state.copy(isPlaying = !state.isPlaying) },
+                onPlayPause = {
+                    val next = !state.isPlaying
+                    studioViewer?.isPlaying = next
+                    state = state.copy(isPlaying = next)
+                },
                 onReset = {
                     studioViewer?.seekTo(0f)
                     state = state.copy(currentTime = 0f, isPlaying = false)
@@ -133,12 +141,12 @@ fun StudioScreen(
                 onForward1s = {
                     val target = (state.currentTime + 1.0f).coerceAtMost(state.duration)
                     studioViewer?.seekTo(target)
-                    state = state.copy(currentTime = target)
+                    state = state.copy(currentTime = target, isPlaying = false)
                 },
                 onBackward1s = {
                     val target = (state.currentTime - 1.0f).coerceAtLeast(0f)
                     studioViewer?.seekTo(target)
-                    state = state.copy(currentTime = target)
+                    state = state.copy(currentTime = target, isPlaying = false)
                 },
                 onSkipToEnd = {
                     val end = state.duration
@@ -154,10 +162,14 @@ fun StudioScreen(
         } else {
             StudioBottomBar(
                 isPlaying = state.isPlaying,
-                onPlayPauseClick = { state = state.copy(isPlaying = !state.isPlaying) },
+                onPlayPauseClick = {
+                    val next = !state.isPlaying
+                    studioViewer?.isPlaying = next
+                    state = state.copy(isPlaying = next)
+                },
                 onResetClick = {
                     studioViewer?.resetTime()
-                    state = state.copy(currentTime = 0f)
+                    state = state.copy(currentTime = 0f, isPlaying = false)
                 },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )

@@ -33,12 +33,10 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,7 +48,6 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -87,18 +84,15 @@ fun StudioTimelineBar(
 
     val safeDuration = duration.coerceAtLeast(0.1f)
 
-    // Decoupled manual dragging state to completely eliminate stuttering and fighting
+    // Decoupled manual dragging state without stale LaunchedEffect resets
     var isDragging by remember { mutableStateOf(false) }
-    var scrubTime by remember { mutableFloatStateOf(currentTime) }
+    var dragTime by remember { mutableFloatStateOf(currentTime) }
 
-    val latestCurrentTime by rememberUpdatedState(currentTime)
-    LaunchedEffect(latestCurrentTime, isDragging) {
-        if (!isDragging) {
-            scrubTime = latestCurrentTime
-        }
+    if (!isDragging) {
+        dragTime = currentTime
     }
 
-    val activeTime = if (isDragging) scrubTime else currentTime
+    val displayTime = if (isDragging) dragTime else currentTime
 
     Column(
         modifier = modifier
@@ -116,7 +110,7 @@ fun StudioTimelineBar(
         ) {
             val textShadow = Shadow(color = Color.Black.copy(alpha = 0.90f), blurRadius = 6f)
             Text(
-                text = formatTime(activeTime),
+                text = formatTime(displayTime),
                 color = AccentCyan,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
@@ -289,7 +283,6 @@ fun StudioTimelineBar(
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             isDragging = true
-                            scrubTime = activeTime
                             var prevX = down.position.x
                             var totalDistance = 0f
 
@@ -304,11 +297,9 @@ fun StudioTimelineBar(
                                 totalDistance += abs(dx)
 
                                 if (abs(dx) > 0.001f) {
-                                    // Geser track ke kiri (dx < 0) = maju waktu; geser ke kanan (dx > 0) = mundur waktu
                                     val dt = -dx / pixelsPerSec
-                                    val newTime = (scrubTime + dt).coerceIn(0f, safeDuration)
-                                    scrubTime = newTime
-                                    onSeek(newTime)
+                                    dragTime = (dragTime + dt).coerceIn(0f, safeDuration)
+                                    onSeek(dragTime)
                                 }
 
                                 event.changes.forEach { it.consume() }
@@ -317,13 +308,13 @@ fun StudioTimelineBar(
                             // Tap seek jika pengguna hanya mengetuk tanpa drag (< 6px movement)
                             if (totalDistance < 6f) {
                                 val centerX = size.width / 2f
-                                val tappedTime = (scrubTime + (down.position.x - centerX) / pixelsPerSec).coerceIn(0f, safeDuration)
-                                scrubTime = tappedTime
+                                val tappedTime = (dragTime + (down.position.x - centerX) / pixelsPerSec).coerceIn(0f, safeDuration)
+                                dragTime = tappedTime
                                 onSeek(tappedTime)
                             }
 
                             isDragging = false
-                            onSeek(scrubTime)
+                            onSeek(dragTime)
                         }
                     }
             ) {
@@ -341,8 +332,8 @@ fun StudioTimelineBar(
                         val minorStep = if (pixelsPerSec > 100f) 0.2f else 0.5f
 
                         // 1. Shaded Track Background (Range 0s..duration)
-                        val xTrackStart = centerX - activeTime * pixelsPerSec
-                        val xTrackEnd = centerX + (safeDuration - activeTime) * pixelsPerSec
+                        val xTrackStart = centerX - displayTime * pixelsPerSec
+                        val xTrackEnd = centerX + (safeDuration - displayTime) * pixelsPerSec
                         val clipLeft = xTrackStart.coerceAtLeast(0f)
                         val clipRight = xTrackEnd.coerceAtMost(size.width)
                         if (clipRight > clipLeft) {
@@ -356,7 +347,7 @@ fun StudioTimelineBar(
                         // 2. Minor ticks
                         var t = 0f
                         while (t <= safeDuration) {
-                            val x = centerX + (t - activeTime) * pixelsPerSec
+                            val x = centerX + (t - displayTime) * pixelsPerSec
                             if (x in -10f..size.width + 10f) {
                                 drawLine(
                                     color = Color(0xFF262C3D).copy(alpha = 0.70f),
@@ -370,7 +361,7 @@ fun StudioTimelineBar(
 
                         // 3. Major second ticks and labels
                         for (s in 0..totalSeconds) {
-                            val x = centerX + (s - activeTime) * pixelsPerSec
+                            val x = centerX + (s - displayTime) * pixelsPerSec
                             if (x in -30f..size.width + 30f) {
                                 drawLine(
                                     color = Color(0xFF4A5568).copy(alpha = 0.85f),
