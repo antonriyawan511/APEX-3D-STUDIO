@@ -4,6 +4,9 @@ import android.content.Context
 import android.net.Uri
 import android.view.MotionEvent
 import android.view.SurfaceView
+import com.google.android.filament.EntityManager
+import com.google.android.filament.LightManager
+import com.google.android.filament.Skybox
 import com.google.android.filament.utils.Manipulator
 import com.google.android.filament.utils.ModelViewer
 import java.io.File
@@ -12,10 +15,11 @@ import java.nio.Buffer
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.channels.FileChannel
+import kotlin.math.max
 
-class StudioViewer(surfaceView: SurfaceView) {
+class StudioViewer(val surfaceView: SurfaceView) {
 
-    val manipulator: Manipulator = Manipulator.Builder()
+    var manipulator: Manipulator = Manipulator.Builder()
         .viewport(1, 1)
         .build(Manipulator.Mode.ORBIT)
 
@@ -27,6 +31,43 @@ class StudioViewer(surfaceView: SurfaceView) {
     var isBlenderCamera: Boolean = true
         private set
     private var lastNanos: Long = 0L
+    private val lights = mutableListOf<Int>()
+
+    init {
+        setupStudioLighting()
+    }
+
+    private fun setupStudioLighting() {
+        val engine = modelViewer.engine
+        val scene = modelViewer.scene
+
+        // 1. Studio Skybox Background (Dark neutral slate)
+        val skybox = Skybox.Builder()
+            .color(0.12f, 0.13f, 0.16f, 1.0f)
+            .build(engine)
+        scene.skybox = skybox
+
+        fun addLight(dirX: Float, dirY: Float, dirZ: Float, intensity: Float, r: Float = 1f, g: Float = 1f, b: Float = 1f) {
+            val light = EntityManager.get().create()
+            LightManager.Builder(LightManager.Type.DIRECTIONAL)
+                .color(r, g, b)
+                .intensity(intensity)
+                .direction(dirX, dirY, dirZ)
+                .castShadows(true)
+                .build(engine, light)
+            scene.addEntity(light)
+            lights.add(light)
+        }
+
+        // Key light (top-front-right)
+        addLight(0.6f, -1.0f, -0.7f, 120_000f)
+        // Fill light (front-left)
+        addLight(-0.8f, -0.5f, -0.4f, 65_000f)
+        // Back / Rim light (top-back)
+        addLight(0.0f, -0.7f, 1.0f, 50_000f)
+        // Ground bounce light (soft upward bounce so underside isn't pitch black)
+        addLight(0.0f, 1.0f, 0.0f, 30_000f, 0.9f, 0.95f, 1.0f)
+    }
 
     fun step(nanos: Long, isPlaying: Boolean, onProgress: (Float) -> Unit) {
         if (isPlaying && lastNanos != 0L) {
@@ -70,12 +111,14 @@ class StudioViewer(surfaceView: SurfaceView) {
         modelViewer.destroyModel()
         modelViewer.loadModelGlb(buffer)
 
+        setupOrbitManipulator()
+
         val cameras = modelViewer.asset?.cameraEntities
         val hasCamera = cameras != null && cameras.isNotEmpty()
         isBlenderCamera = hasCamera
 
         if (!hasCamera) {
-            modelViewer.transformToUnitCube()
+            modelViewer.view.camera = modelViewer.camera
         } else {
             modelViewer.view.camera = modelViewer.engine.getCameraComponent(cameras[0])
         }
@@ -88,6 +131,28 @@ class StudioViewer(surfaceView: SurfaceView) {
         onLoaded(duration, hasCamera)
     }
 
+    private fun setupOrbitManipulator() {
+        val asset = modelViewer.asset ?: return
+        val box = asset.boundingBox
+        val center = box.center
+        val half = box.halfExtent
+        val maxExtent = max(half[0], max(half[1], half[2])).coerceAtLeast(0.5f)
+        val distance = maxExtent * 2.5f
+
+        val viewWidth = surfaceView.width.coerceAtLeast(1)
+        val viewHeight = surfaceView.height.coerceAtLeast(1)
+
+        val newManipulator = Manipulator.Builder()
+            .targetPosition(center[0], center[1], center[2])
+            .orbitHomePosition(center[0], center[1] + maxExtent * 0.3f, center[2] + distance)
+            .viewport(viewWidth, viewHeight)
+            .zoomSpeed(distance * 0.05f)
+            .build(Manipulator.Mode.ORBIT)
+
+        manipulator = newManipulator
+        gestureDetector.manipulator = newManipulator
+    }
+
     fun toggleCamera(): Boolean {
         val cameras = modelViewer.asset?.cameraEntities
         if (cameras == null || cameras.isEmpty()) return false
@@ -96,8 +161,8 @@ class StudioViewer(surfaceView: SurfaceView) {
         if (isBlenderCamera) {
             modelViewer.view.camera = modelViewer.engine.getCameraComponent(cameras[0])
         } else {
+            setupOrbitManipulator()
             modelViewer.view.camera = modelViewer.camera
-            modelViewer.transformToUnitCube()
         }
         return isBlenderCamera
     }
@@ -117,6 +182,10 @@ class StudioViewer(surfaceView: SurfaceView) {
     }
 
     fun destroy() {
+        for (light in lights) {
+            modelViewer.engine.destroyEntity(light)
+        }
+        lights.clear()
         modelViewer.destroyModel()
     }
 }

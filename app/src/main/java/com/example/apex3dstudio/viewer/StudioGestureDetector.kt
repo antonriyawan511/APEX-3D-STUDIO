@@ -8,7 +8,7 @@ import kotlin.math.hypot
 
 class StudioGestureDetector(
     private val view: View,
-    private val manipulator: Manipulator
+    var manipulator: Manipulator
 ) {
     private enum class State { NONE, ORBIT, PINCH_PAN_ZOOM }
     private var state = State.NONE
