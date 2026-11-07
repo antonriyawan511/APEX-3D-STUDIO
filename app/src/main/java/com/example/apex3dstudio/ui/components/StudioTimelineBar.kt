@@ -24,14 +24,15 @@ import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
@@ -70,6 +72,7 @@ fun StudioTimelineBar(
     onReset: () -> Unit,
     onForward1s: () -> Unit,
     onBackward1s: () -> Unit,
+    onSkipToEnd: () -> Unit,
     onSeek: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -79,23 +82,8 @@ fun StudioTimelineBar(
     var zoomScale by remember { mutableFloatStateOf(1.0f) }
     val pixelsPerSec = basePixelsPerSec * zoomScale
 
-    var scrollOffset by remember { mutableFloatStateOf(0f) }
     var viewportWidthPx by remember { mutableFloatStateOf(1f) }
-    var isUserScrubbing by remember { mutableStateOf(false) }
-
     val safeDuration = duration.coerceAtLeast(0.1f)
-    val totalWidthPx = safeDuration * pixelsPerSec
-    val maxScroll = (totalWidthPx - viewportWidthPx).coerceAtLeast(0f)
-
-    // Keep playhead in view during normal playback (auto-scroll)
-    LaunchedEffect(currentTime, isPlaying, isUserScrubbing) {
-        if (!isUserScrubbing && duration > 0f) {
-            val playheadX = currentTime * pixelsPerSec
-            if (playheadX < scrollOffset || playheadX > scrollOffset + viewportWidthPx) {
-                scrollOffset = (playheadX - viewportWidthPx / 2f).coerceIn(0f, maxScroll)
-            }
-        }
-    }
 
     Column(
         modifier = modifier
@@ -105,39 +93,34 @@ fun StudioTimelineBar(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // 1. Informasi Current Time / Total Duration di LUAR bar timeline (Center)
-        Box(
-            modifier = Modifier
-                .background(
-                    color = StudioDarkSurface.copy(alpha = 0.90f),
-                    shape = RoundedCornerShape(14.dp)
-                )
-                .border(1.dp, StudioBorder, RoundedCornerShape(14.dp))
-                .padding(horizontal = 14.dp, vertical = 3.dp)
+        // 1. Informasi Current Time / Total Duration: Transparan, tanpa container/background, center
+        Row(
+            modifier = Modifier.padding(bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = formatTime(currentTime),
-                    color = AccentCyan,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
-                Text(
-                    text = "/",
-                    color = TextMuted,
-                    fontSize = 11.sp
-                )
-                Text(
-                    text = formatTime(duration),
-                    color = TextSecondary,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
+            val textShadow = Shadow(color = Color.Black.copy(alpha = 0.85f), blurRadius = 6f)
+            Text(
+                text = formatTime(currentTime),
+                color = AccentCyan,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.labelMedium.copy(shadow = textShadow)
+            )
+            Text(
+                text = "/",
+                color = TextMuted,
+                fontSize = 11.sp,
+                style = MaterialTheme.typography.labelMedium.copy(shadow = textShadow)
+            )
+            Text(
+                text = formatTime(duration),
+                color = TextSecondary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.labelMedium.copy(shadow = textShadow)
+            )
         }
 
         // 2. Bar Timeline Utama
@@ -152,23 +135,18 @@ fun StudioTimelineBar(
                 .padding(horizontal = 6.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            // Row Atas: Tombol (-) Kiri, Playback Controls Tengah, Tombol (+) Kanan
-            Row(
+            // Row 1: Tombol (-) Kiri, 5 Tombol Playback Simetris (Play sebagai Center Anchor), Tombol (+) Kanan
+            Box(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                contentAlignment = Alignment.Center
             ) {
                 // Tombol Zoom Out (-)
                 IconButton(
-                    onClick = {
-                        val newZoom = (zoomScale / 1.25f).coerceAtLeast(0.4f)
-                        val newPixels = basePixelsPerSec * newZoom
-                        val newMax = (safeDuration * newPixels - viewportWidthPx).coerceAtLeast(0f)
-                        scrollOffset = (currentTime * newPixels - viewportWidthPx / 2f).coerceIn(0f, newMax)
-                        zoomScale = newZoom
-                    },
+                    onClick = { zoomScale = (zoomScale / 1.25f).coerceAtLeast(0.4f) },
                     enabled = duration > 0f && zoomScale > 0.4f,
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .size(34.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Remove,
@@ -178,15 +156,17 @@ fun StudioTimelineBar(
                     )
                 }
 
-                // Transport Playback Controls (Reset, -1s, Play/Pause, +1s)
+                // 5 Tombol Playback Simetris: 2 tombol di kiri Play, Play tepat di tengah, 2 tombol di kanan Play
                 Row(
+                    modifier = Modifier.align(Alignment.Center),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    // Tombol 1: Reset (00:00)
                     IconButton(
                         onClick = onReset,
                         enabled = duration > 0f,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(34.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.SkipPrevious,
@@ -196,10 +176,11 @@ fun StudioTimelineBar(
                         )
                     }
 
+                    // Tombol 2: Backward 1s (-1s)
                     IconButton(
                         onClick = onBackward1s,
                         enabled = duration > 0f,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(34.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.FastRewind,
@@ -209,6 +190,7 @@ fun StudioTimelineBar(
                         )
                     }
 
+                    // Tombol 3: Play / Stop (Titik Pusat / Center Anchor)
                     FilledIconButton(
                         onClick = onPlayPause,
                         enabled = duration > 0f,
@@ -225,10 +207,11 @@ fun StudioTimelineBar(
                         )
                     }
 
+                    // Tombol 4: Forward 1s (+1s)
                     IconButton(
                         onClick = onForward1s,
                         enabled = duration > 0f,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(34.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.FastForward,
@@ -237,19 +220,29 @@ fun StudioTimelineBar(
                             modifier = Modifier.size(18.dp)
                         )
                     }
+
+                    // Tombol 5: Ke Akhir (Skip to End)
+                    IconButton(
+                        onClick = onSkipToEnd,
+                        enabled = duration > 0f,
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SkipNext,
+                            contentDescription = "To End",
+                            tint = if (duration > 0f) TextPrimary else TextMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
 
                 // Tombol Zoom In (+)
                 IconButton(
-                    onClick = {
-                        val newZoom = (zoomScale * 1.25f).coerceAtMost(4.0f)
-                        val newPixels = basePixelsPerSec * newZoom
-                        val newMax = (safeDuration * newPixels - viewportWidthPx).coerceAtLeast(0f)
-                        scrollOffset = (currentTime * newPixels - viewportWidthPx / 2f).coerceIn(0f, newMax)
-                        zoomScale = newZoom
-                    },
+                    onClick = { zoomScale = (zoomScale * 1.25f).coerceAtMost(4.0f) },
                     enabled = duration > 0f && zoomScale < 4.0f,
-                    modifier = Modifier.size(34.dp)
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .size(34.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
@@ -260,7 +253,7 @@ fun StudioTimelineBar(
                 }
             }
 
-            // Row Bawah: Timeline Canvas Ruler & Playhead (Hanya Scrubbing, TANPA Pinch Zoom)
+            // Row 2: Timeline Canvas Ruler (Center Playhead & Moving Track Scrubbing)
             val tickPaint = remember {
                 Paint().apply {
                     color = 0xFF5A6275.toInt()
@@ -280,39 +273,25 @@ fun StudioTimelineBar(
                     .onSizeChanged { size ->
                         viewportWidthPx = size.width.toFloat().coerceAtLeast(1f)
                     }
-                    .pointerInput(safeDuration, pixelsPerSec, scrollOffset) {
+                    .pointerInput(safeDuration, pixelsPerSec) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
-                            isUserScrubbing = true
-
-                            // Initial touch seek
-                            val touchX = down.position.x
-                            val targetTime = ((touchX + scrollOffset) / pixelsPerSec).coerceIn(0f, safeDuration)
-                            onSeek(targetTime)
+                            val startX = down.position.x
+                            val startTime = currentTime
 
                             while (true) {
                                 val event = awaitPointerEvent()
                                 val active = event.changes.filter { it.pressed }
                                 if (active.isEmpty()) break
 
-                                // Hanya pointer pertama yang menggerakkan scrubbing. Tidak ada logika pinch zoom.
-                                val pointer = active[0]
-                                val x = pointer.position.x
-                                val scrubTime = ((x + scrollOffset) / pixelsPerSec).coerceIn(0f, safeDuration)
+                                val currentX = active[0].position.x
+                                val dx = currentX - startX
+                                // Geser track ke kiri (dx < 0) = maju waktu; geser ke kanan (dx > 0) = mundur waktu
+                                val scrubTime = (startTime - dx / pixelsPerSec).coerceIn(0f, safeDuration)
                                 onSeek(scrubTime)
 
-                                // Edge auto-scrolling
-                                if (x < 40f && scrollOffset > 0f) {
-                                    scrollOffset = (scrollOffset - 6f).coerceAtLeast(0f)
-                                } else if (x > viewportWidthPx - 40f && scrollOffset < maxScroll) {
-                                    scrollOffset = (scrollOffset + 6f).coerceAtMost(maxScroll)
-                                }
-
-                                // Consume semua touch agar tidak tembus ke kamera 3D
                                 event.changes.forEach { it.consume() }
                             }
-
-                            isUserScrubbing = false
                         }
                     }
             ) {
@@ -325,13 +304,27 @@ fun StudioTimelineBar(
                     )
                 } else {
                     Canvas(modifier = Modifier.matchParentSize()) {
+                        val centerX = size.width / 2f
                         val totalSeconds = ceil(safeDuration).toInt()
                         val minorStep = if (pixelsPerSec > 100f) 0.2f else 0.5f
 
-                        // Draw minor ticks
+                        // 1. Shaded Track Background (Range 0s..duration)
+                        val xTrackStart = centerX - currentTime * pixelsPerSec
+                        val xTrackEnd = centerX + (safeDuration - currentTime) * pixelsPerSec
+                        val clipLeft = xTrackStart.coerceAtLeast(0f)
+                        val clipRight = xTrackEnd.coerceAtMost(size.width)
+                        if (clipRight > clipLeft) {
+                            drawRect(
+                                color = Color(0xFF131722),
+                                topLeft = Offset(clipLeft, 0f),
+                                size = Size(clipRight - clipLeft, size.height)
+                            )
+                        }
+
+                        // 2. Minor ticks
                         var t = 0f
                         while (t <= safeDuration) {
-                            val x = t * pixelsPerSec - scrollOffset
+                            val x = centerX + (t - currentTime) * pixelsPerSec
                             if (x in -10f..size.width + 10f) {
                                 drawLine(
                                     color = Color(0xFF1E2330),
@@ -343,10 +336,10 @@ fun StudioTimelineBar(
                             t += minorStep
                         }
 
-                        // Draw major second ticks and labels
+                        // 3. Major second ticks and labels
                         for (s in 0..totalSeconds) {
-                            val x = s * pixelsPerSec - scrollOffset
-                            if (x in -20f..size.width + 20f) {
+                            val x = centerX + (s - currentTime) * pixelsPerSec
+                            if (x in -30f..size.width + 30f) {
                                 drawLine(
                                     color = Color(0xFF384055),
                                     start = Offset(x, 0f),
@@ -359,24 +352,20 @@ fun StudioTimelineBar(
                             }
                         }
 
-                        // Draw Playhead
-                        val playheadX = currentTime * pixelsPerSec - scrollOffset
-                        if (playheadX in -10f..size.width + 10f) {
-                            // Vertical playhead line
-                            drawLine(
-                                color = AccentCyan,
-                                start = Offset(playheadX, 0f),
-                                end = Offset(playheadX, size.height),
-                                strokeWidth = 2.dp.toPx()
-                            )
+                        // 4. Center Playhead (SELALU DIAM DI TENGAH)
+                        drawLine(
+                            color = AccentCyan,
+                            start = Offset(centerX, 0f),
+                            end = Offset(centerX, size.height),
+                            strokeWidth = 2.dp.toPx()
+                        )
 
-                            // Playhead top cap indicator
-                            drawRect(
-                                color = AccentCyan,
-                                topLeft = Offset(playheadX - 4.dp.toPx(), 0f),
-                                size = Size(8.dp.toPx(), 6.dp.toPx())
-                            )
-                        }
+                        // Playhead top cap indicator
+                        drawRect(
+                            color = AccentCyan,
+                            topLeft = Offset(centerX - 4.dp.toPx(), 0f),
+                            size = Size(8.dp.toPx(), 7.dp.toPx())
+                        )
                     }
                 }
             }

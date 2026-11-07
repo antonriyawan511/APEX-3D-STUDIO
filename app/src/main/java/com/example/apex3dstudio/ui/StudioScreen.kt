@@ -138,6 +138,11 @@ fun StudioScreen(
                     studioViewer?.seekTo(target)
                     state = state.copy(currentTime = target)
                 },
+                onSkipToEnd = {
+                    val end = state.duration
+                    studioViewer?.seekTo(end)
+                    state = state.copy(currentTime = end, isPlaying = false)
+                },
                 onSeek = { targetTime ->
                     studioViewer?.seekTo(targetTime)
                     state = state.copy(currentTime = targetTime, isPlaying = false)
