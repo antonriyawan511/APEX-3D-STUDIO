@@ -1,0 +1,9 @@
+package com.example.apex3dstudio.state
+
+data class StudioState(
+    val isPlaying: Boolean = true,
+    val currentTime: Float = 0f,
+    val duration: Float = 0f,
+    val modelName: String = "",
+    val hasCamera: Boolean = false
+)
