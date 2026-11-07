@@ -163,7 +163,6 @@ class StudioViewer(val surfaceView: SurfaceView) {
             .targetPosition(center[0], center[1], center[2])
             .orbitHomePosition(center[0], center[1] + maxExtent * 0.2f, center[2] + distance)
             .viewport(viewWidth, viewHeight)
-            .zoomSpeed(distance * 0.04f)
             .build(Manipulator.Mode.ORBIT)
 
         setModelViewerManipulator(newManipulator)

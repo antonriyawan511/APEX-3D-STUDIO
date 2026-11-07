@@ -27,13 +27,15 @@ class StudioGestureDetector(
                 val y = height - event.y.toInt()
                 prevX = x
                 prevY = y
-                manipulator.grabBegin(x, y, false)
+                manipulator.grabBegin(x, y, false) // 1-finger orbit grab
                 state = State.ORBIT
             }
 
             MotionEvent.ACTION_POINTER_DOWN -> {
                 if (event.pointerCount == 2) {
-                    manipulator.grabEnd()
+                    if (state == State.ORBIT) {
+                        manipulator.grabEnd()
+                    }
 
                     val x0 = event.getX(0)
                     val y0 = event.getY(0)
@@ -46,8 +48,6 @@ class StudioGestureDetector(
                     prevX = midX
                     prevY = midY
                     prevDistance = hypot(x1 - x0, y1 - y0)
-
-                    manipulator.grabBegin(midX, midY, true)
                     state = State.PINCH_PAN_ZOOM
                 }
             }
@@ -75,17 +75,24 @@ class StudioGestureDetector(
                             val midY = height - ((y0 + y1) / 2f).toInt()
                             val distance = hypot(x1 - x0, y1 - y0)
 
-                            // 1. Simultaneous Zoom
-                            val deltaDistance = distance - prevDistance
-                            if (prevDistance > 0f && abs(deltaDistance) > 1f) {
-                                manipulator.scroll(midX, midY, deltaDistance * 0.05f)
-                            }
-                            prevDistance = distance
+                            if (prevDistance > 0f) {
+                                // 1. Zoom (Negative delta = Zoom In, Positive = Zoom Out)
+                                val deltaZoom = (prevDistance - distance) * 0.08f
+                                if (abs(distance - prevDistance) > 0.5f) {
+                                    manipulator.scroll(midX, midY, deltaZoom)
+                                }
 
-                            // 2. Simultaneous Pan
-                            manipulator.grabUpdate(midX, midY)
+                                // 2. Pan (Simultaneous incremental strafe)
+                                if (abs(midX - prevX) > 0 || abs(midY - prevY) > 0) {
+                                    manipulator.grabBegin(prevX, prevY, true)
+                                    manipulator.grabUpdate(midX, midY)
+                                    manipulator.grabEnd()
+                                }
+                            }
+
                             prevX = midX
                             prevY = midY
+                            prevDistance = distance
                         }
                     }
 
@@ -95,16 +102,15 @@ class StudioGestureDetector(
 
             MotionEvent.ACTION_POINTER_UP -> {
                 if (state == State.PINCH_PAN_ZOOM) {
-                    manipulator.grabEnd()
                     state = State.NONE
                 }
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (state != State.NONE) {
+                if (state == State.ORBIT) {
                     manipulator.grabEnd()
-                    state = State.NONE
                 }
+                state = State.NONE
             }
         }
         return true
