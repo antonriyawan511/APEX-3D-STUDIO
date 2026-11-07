@@ -101,6 +101,11 @@ fun StudioScreen(
                 state = state.copy(hasCamera = isBlender)
             },
             onSettingsClick = { showSettings = true },
+            currentPreset = state.environmentPreset,
+            onPresetSelected = { preset ->
+                state = state.copy(environmentPreset = preset)
+                studioViewer?.applyEnvironment(preset)
+            },
             hasCamera = state.hasCamera,
             modifier = Modifier.align(Alignment.TopCenter)
         )

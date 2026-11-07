@@ -5,5 +5,6 @@ data class StudioState(
     val currentTime: Float = 0f,
     val duration: Float = 0f,
     val modelName: String = "",
-    val hasCamera: Boolean = false
+    val hasCamera: Boolean = false,
+    val environmentPreset: EnvironmentPreset = EnvironmentPreset.STUDIO_NEUTRAL
 )

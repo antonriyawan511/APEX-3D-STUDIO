@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.view.MotionEvent
 import android.view.SurfaceView
+import com.example.apex3dstudio.state.EnvironmentPreset
 import com.google.android.filament.Camera
 import com.google.android.filament.EntityManager
 import com.google.android.filament.LightManager
@@ -30,6 +31,9 @@ class StudioViewer(val surfaceView: SurfaceView) {
         private set
     private var lastNanos: Long = 0L
     private val lights = mutableListOf<Int>()
+    private var currentSkybox: Skybox? = null
+    var currentEnvironment: EnvironmentPreset = EnvironmentPreset.STUDIO_NEUTRAL
+        private set
 
     init {
         setupStudioLighting()
@@ -38,12 +42,6 @@ class StudioViewer(val surfaceView: SurfaceView) {
     private fun setupStudioLighting() {
         val engine = modelViewer.engine
         val scene = modelViewer.scene
-
-        // Studio Skybox Background (Dark neutral slate)
-        val skybox = Skybox.Builder()
-            .color(0.12f, 0.13f, 0.16f, 1.0f)
-            .build(engine)
-        scene.skybox = skybox
 
         fun addLight(dirX: Float, dirY: Float, dirZ: Float, intensity: Float, r: Float = 1f, g: Float = 1f, b: Float = 1f) {
             val light = EntityManager.get().create()
@@ -65,6 +63,84 @@ class StudioViewer(val surfaceView: SurfaceView) {
         addLight(0.0f, -0.7f, 1.0f, 50_000f)
         // Ground bounce light (soft upward bounce)
         addLight(0.0f, 1.0f, 0.0f, 30_000f, 0.9f, 0.95f, 1.0f)
+
+        applyEnvironment(EnvironmentPreset.STUDIO_NEUTRAL)
+    }
+
+    fun applyEnvironment(preset: EnvironmentPreset) {
+        currentEnvironment = preset
+        val engine = modelViewer.engine
+        val scene = modelViewer.scene
+        val lm = engine.lightManager
+
+        val (sr, sg, sb) = when (preset) {
+            EnvironmentPreset.FILE_DEFAULT -> Triple(0.12f, 0.13f, 0.16f)
+            EnvironmentPreset.STUDIO_NEUTRAL -> Triple(0.12f, 0.13f, 0.16f)
+            EnvironmentPreset.DAYLIGHT -> Triple(0.20f, 0.24f, 0.32f)
+            EnvironmentPreset.GOLDEN_SUNSET -> Triple(0.18f, 0.10f, 0.15f)
+            EnvironmentPreset.NIGHT_CITY -> Triple(0.05f, 0.06f, 0.10f)
+            EnvironmentPreset.OLED_BLACK -> Triple(0.0f, 0.0f, 0.0f)
+        }
+
+        currentSkybox?.let { runCatching { engine.destroySkybox(it) } }
+        val newSkybox = Skybox.Builder().color(sr, sg, sb, 1.0f).build(engine)
+        scene.skybox = newSkybox
+        currentSkybox = newSkybox
+
+        if (lights.size < 4) return
+
+        fun updateLight(
+            index: Int,
+            intensity: Float,
+            r: Float, g: Float, b: Float,
+            dirX: Float, dirY: Float, dirZ: Float
+        ) {
+            val instance = lm.getInstance(lights[index])
+            if (instance != 0) {
+                lm.setIntensity(instance, intensity)
+                lm.setColor(instance, r, g, b)
+                lm.setDirection(instance, dirX, dirY, dirZ)
+            }
+        }
+
+        when (preset) {
+            EnvironmentPreset.FILE_DEFAULT -> {
+                updateLight(0, 0f, 1f, 1f, 1f, 0.6f, -1.0f, -0.7f)
+                updateLight(1, 0f, 1f, 1f, 1f, -0.8f, -0.5f, -0.4f)
+                updateLight(2, 0f, 1f, 1f, 1f, 0.0f, -0.7f, 1.0f)
+                updateLight(3, 0f, 1f, 1f, 1f, 0.0f, 1.0f, 0.0f)
+            }
+            EnvironmentPreset.STUDIO_NEUTRAL -> {
+                updateLight(0, 120_000f, 1.0f, 1.0f, 1.0f, 0.6f, -1.0f, -0.7f)
+                updateLight(1, 65_000f, 0.95f, 0.95f, 1.0f, -0.8f, -0.5f, -0.4f)
+                updateLight(2, 50_000f, 1.0f, 1.0f, 1.0f, 0.0f, -0.7f, 1.0f)
+                updateLight(3, 30_000f, 0.9f, 0.95f, 1.0f, 0.0f, 1.0f, 0.0f)
+            }
+            EnvironmentPreset.DAYLIGHT -> {
+                updateLight(0, 160_000f, 1.0f, 0.98f, 0.92f, 0.4f, -1.2f, -0.6f)
+                updateLight(1, 80_000f, 0.75f, 0.85f, 1.0f, -0.6f, -0.8f, 0.2f)
+                updateLight(2, 40_000f, 1.0f, 1.0f, 1.0f, 0.0f, -0.5f, 1.0f)
+                updateLight(3, 40_000f, 0.85f, 0.9f, 0.8f, 0.0f, 1.0f, 0.0f)
+            }
+            EnvironmentPreset.GOLDEN_SUNSET -> {
+                updateLight(0, 150_000f, 1.0f, 0.65f, 0.30f, 1.2f, -0.3f, -0.4f)
+                updateLight(1, 50_000f, 0.45f, 0.40f, 0.75f, -1.0f, -0.4f, 0.2f)
+                updateLight(2, 70_000f, 1.0f, 0.45f, 0.20f, -0.4f, -0.6f, 1.0f)
+                updateLight(3, 25_000f, 0.40f, 0.25f, 0.30f, 0.0f, 1.0f, 0.0f)
+            }
+            EnvironmentPreset.NIGHT_CITY -> {
+                updateLight(0, 90_000f, 0.25f, 0.85f, 1.0f, 0.8f, -0.8f, -0.5f)
+                updateLight(1, 40_000f, 0.15f, 0.20f, 0.60f, -0.7f, -0.6f, -0.3f)
+                updateLight(2, 95_000f, 1.0f, 0.15f, 0.65f, 0.0f, -0.8f, 1.0f)
+                updateLight(3, 15_000f, 0.10f, 0.10f, 0.25f, 0.0f, 1.0f, 0.0f)
+            }
+            EnvironmentPreset.OLED_BLACK -> {
+                updateLight(0, 130_000f, 1.0f, 1.0f, 1.0f, 0.5f, -1.0f, -0.5f)
+                updateLight(1, 35_000f, 0.80f, 0.85f, 0.95f, -0.7f, -0.4f, -0.3f)
+                updateLight(2, 80_000f, 1.0f, 1.0f, 1.0f, 0.0f, -0.5f, 1.0f)
+                updateLight(3, 10_000f, 0.50f, 0.50f, 0.60f, 0.0f, 1.0f, 0.0f)
+            }
+        }
     }
 
     fun step(nanos: Long, isPlaying: Boolean, onProgress: (Float) -> Unit) {
@@ -177,6 +253,8 @@ class StudioViewer(val surfaceView: SurfaceView) {
             runCatching { modelViewer.engine.destroyEntity(light) }
         }
         lights.clear()
+        currentSkybox?.let { runCatching { modelViewer.engine.destroySkybox(it) } }
+        currentSkybox = null
         runCatching { modelViewer.engine.destroyCameraComponent(orbitCameraEntity) }
         runCatching { EntityManager.get().destroy(orbitCameraEntity) }
         modelViewer.destroyModel()
