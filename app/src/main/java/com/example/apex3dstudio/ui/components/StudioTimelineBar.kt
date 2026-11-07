@@ -18,10 +18,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -58,7 +60,6 @@ import com.example.apex3dstudio.ui.theme.TextPrimary
 import com.example.apex3dstudio.ui.theme.TextSecondary
 import java.util.Locale
 import kotlin.math.ceil
-import kotlin.math.hypot
 
 @Composable
 fun StudioTimelineBar(
@@ -73,10 +74,11 @@ fun StudioTimelineBar(
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
-    val minPixelsPerSec = with(density) { 30.dp.toPx() }
-    val maxPixelsPerSec = with(density) { 260.dp.toPx() }
+    val basePixelsPerSec = with(density) { 60.dp.toPx() }
 
-    var pixelsPerSec by remember { mutableFloatStateOf(minPixelsPerSec * 2f) }
+    var zoomScale by remember { mutableFloatStateOf(1.0f) }
+    val pixelsPerSec = basePixelsPerSec * zoomScale
+
     var scrollOffset by remember { mutableFloatStateOf(0f) }
     var viewportWidthPx by remember { mutableFloatStateOf(1f) }
     var isUserScrubbing by remember { mutableStateOf(false) }
@@ -95,12 +97,50 @@ fun StudioTimelineBar(
         }
     }
 
-    Box(
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        // 1. Informasi Current Time / Total Duration di LUAR bar timeline (Center)
+        Box(
+            modifier = Modifier
+                .background(
+                    color = StudioDarkSurface.copy(alpha = 0.90f),
+                    shape = RoundedCornerShape(14.dp)
+                )
+                .border(1.dp, StudioBorder, RoundedCornerShape(14.dp))
+                .padding(horizontal = 14.dp, vertical = 3.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = formatTime(currentTime),
+                    color = AccentCyan,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    text = "/",
+                    color = TextMuted,
+                    fontSize = 11.sp
+                )
+                Text(
+                    text = formatTime(duration),
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+
+        // 2. Bar Timeline Utama
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -109,46 +149,40 @@ fun StudioTimelineBar(
                     shape = RoundedCornerShape(12.dp)
                 )
                 .border(1.dp, StudioBorder, RoundedCornerShape(12.dp))
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(horizontal = 6.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            // Row 1: Time Indicator & Transport Playback Controls
+            // Row Atas: Tombol (-) Kiri, Playback Controls Tengah, Tombol (+) Kanan
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Time Indicator (00:02.4 / 00:08.5)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                // Tombol Zoom Out (-)
+                IconButton(
+                    onClick = {
+                        val newZoom = (zoomScale / 1.25f).coerceAtLeast(0.4f)
+                        val newPixels = basePixelsPerSec * newZoom
+                        val newMax = (safeDuration * newPixels - viewportWidthPx).coerceAtLeast(0f)
+                        scrollOffset = (currentTime * newPixels - viewportWidthPx / 2f).coerceIn(0f, newMax)
+                        zoomScale = newZoom
+                    },
+                    enabled = duration > 0f && zoomScale > 0.4f,
+                    modifier = Modifier.size(34.dp)
                 ) {
-                    Text(
-                        text = formatTime(currentTime),
-                        color = AccentCyan,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Text(
-                        text = "/",
-                        color = TextMuted,
-                        fontSize = 11.sp
-                    )
-                    Text(
-                        text = formatTime(duration),
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
+                    Icon(
+                        imageVector = Icons.Default.Remove,
+                        contentDescription = "Zoom Out (-)",
+                        tint = if (duration > 0f && zoomScale > 0.4f) TextPrimary else TextMuted,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
-                // Playback Transport Buttons
+                // Transport Playback Controls (Reset, -1s, Play/Pause, +1s)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    // Reset (00:00)
                     IconButton(
                         onClick = onReset,
                         enabled = duration > 0f,
@@ -162,7 +196,6 @@ fun StudioTimelineBar(
                         )
                     }
 
-                    // Backward 1s (-1s)
                     IconButton(
                         onClick = onBackward1s,
                         enabled = duration > 0f,
@@ -176,7 +209,6 @@ fun StudioTimelineBar(
                         )
                     }
 
-                    // Play / Stop
                     FilledIconButton(
                         onClick = onPlayPause,
                         enabled = duration > 0f,
@@ -193,7 +225,6 @@ fun StudioTimelineBar(
                         )
                     }
 
-                    // Forward 1s (+1s)
                     IconButton(
                         onClick = onForward1s,
                         enabled = duration > 0f,
@@ -208,17 +239,28 @@ fun StudioTimelineBar(
                     }
                 }
 
-                // Zoom Level
-                val zoomRatio = (pixelsPerSec / (minPixelsPerSec * 2f) * 10f).toInt() / 10f
-                Text(
-                    text = "${zoomRatio}x",
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
-                )
+                // Tombol Zoom In (+)
+                IconButton(
+                    onClick = {
+                        val newZoom = (zoomScale * 1.25f).coerceAtMost(4.0f)
+                        val newPixels = basePixelsPerSec * newZoom
+                        val newMax = (safeDuration * newPixels - viewportWidthPx).coerceAtLeast(0f)
+                        scrollOffset = (currentTime * newPixels - viewportWidthPx / 2f).coerceIn(0f, newMax)
+                        zoomScale = newZoom
+                    },
+                    enabled = duration > 0f && zoomScale < 4.0f,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Zoom In (+)",
+                        tint = if (duration > 0f && zoomScale < 4.0f) TextPrimary else TextMuted,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
-            // Row 2: Timeline Canvas Ruler & Playhead
+            // Row Bawah: Timeline Canvas Ruler & Playhead (Hanya Scrubbing, TANPA Pinch Zoom)
             val tickPaint = remember {
                 Paint().apply {
                     color = 0xFF5A6275.toInt()
@@ -241,12 +283,6 @@ fun StudioTimelineBar(
                     .pointerInput(safeDuration, pixelsPerSec, scrollOffset) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
-                            var isPinching = false
-                            var initialSpan = 0f
-                            var initialScale = pixelsPerSec
-                            var initialScroll = scrollOffset
-                            var focusTime = 0f
-
                             isUserScrubbing = true
 
                             // Initial touch seek
@@ -259,44 +295,21 @@ fun StudioTimelineBar(
                                 val active = event.changes.filter { it.pressed }
                                 if (active.isEmpty()) break
 
-                                if (active.size >= 2) {
-                                    // Pinch to zoom gesture
-                                    isPinching = true
-                                    val p1 = active[0].position
-                                    val p2 = active[1].position
-                                    val span = hypot(p1.x - p2.x, p1.y - p2.y)
-                                    val midX = (p1.x + p2.x) / 2f
+                                // Hanya pointer pertama yang menggerakkan scrubbing. Tidak ada logika pinch zoom.
+                                val pointer = active[0]
+                                val x = pointer.position.x
+                                val scrubTime = ((x + scrollOffset) / pixelsPerSec).coerceIn(0f, safeDuration)
+                                onSeek(scrubTime)
 
-                                    if (initialSpan == 0f) {
-                                        initialSpan = span
-                                        initialScale = pixelsPerSec
-                                        initialScroll = scrollOffset
-                                        focusTime = (midX + scrollOffset) / pixelsPerSec
-                                    } else if (initialSpan > 10f) {
-                                        val factor = span / initialSpan
-                                        val newScale = (initialScale * factor).coerceIn(minPixelsPerSec, maxPixelsPerSec)
-                                        pixelsPerSec = newScale
-
-                                        // Preserve focus anchor position without sudden jumps
-                                        val newScroll = (focusTime * newScale - midX)
-                                            .coerceIn(0f, (safeDuration * newScale - viewportWidthPx).coerceAtLeast(0f))
-                                        scrollOffset = newScroll
-                                    }
-                                    active.forEach { it.consume() }
-                                } else if (active.size == 1 && !isPinching) {
-                                    // 1-finger horizontal scrubbing
-                                    val x = active[0].position.x
-                                    val scrubTime = ((x + scrollOffset) / pixelsPerSec).coerceIn(0f, safeDuration)
-                                    onSeek(scrubTime)
-
-                                    // Edge auto-scrolling
-                                    if (x < 40f && scrollOffset > 0f) {
-                                        scrollOffset = (scrollOffset - 6f).coerceAtLeast(0f)
-                                    } else if (x > viewportWidthPx - 40f && scrollOffset < maxScroll) {
-                                        scrollOffset = (scrollOffset + 6f).coerceAtMost(maxScroll)
-                                    }
-                                    active[0].consume()
+                                // Edge auto-scrolling
+                                if (x < 40f && scrollOffset > 0f) {
+                                    scrollOffset = (scrollOffset - 6f).coerceAtLeast(0f)
+                                } else if (x > viewportWidthPx - 40f && scrollOffset < maxScroll) {
+                                    scrollOffset = (scrollOffset + 6f).coerceAtMost(maxScroll)
                                 }
+
+                                // Consume semua touch agar tidak tembus ke kamera 3D
+                                event.changes.forEach { it.consume() }
                             }
 
                             isUserScrubbing = false
