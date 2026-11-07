@@ -239,7 +239,8 @@ class StudioViewer(val surfaceView: SurfaceView) {
         if (animator != null && animator.animationCount > 0) {
             val duration = animator.getAnimationDuration(0).coerceAtLeast(0.1f)
             animTime = seconds.coerceIn(0f, duration)
-            animator.applyAnimation(0, animTime)
+            val applyTime = if (animTime >= duration) (duration - 0.0001f).coerceAtLeast(0f) else animTime
+            animator.applyAnimation(0, applyTime)
             animator.updateBoneMatrices()
         } else {
             animTime = 0f

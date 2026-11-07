@@ -12,6 +12,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,12 +38,13 @@ fun StudioScreen(
     var sensitivity by remember { mutableStateOf(GestureSensitivity()) }
     var showSettings by remember { mutableStateOf(false) }
 
+    val currentPlaying by rememberUpdatedState(state.isPlaying)
     val choreographer = remember { Choreographer.getInstance() }
     val frameCallback = remember {
         object : Choreographer.FrameCallback {
             override fun doFrame(nanos: Long) {
                 choreographer.postFrameCallback(this)
-                studioViewer?.step(nanos, state.isPlaying) { progress ->
+                studioViewer?.step(nanos, currentPlaying) { progress ->
                     state = state.copy(currentTime = progress)
                 }
             }

@@ -33,10 +33,12 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +63,7 @@ import com.example.apex3dstudio.ui.theme.TextMuted
 import com.example.apex3dstudio.ui.theme.TextPrimary
 import com.example.apex3dstudio.ui.theme.TextSecondary
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.ceil
 
 @Composable
@@ -82,8 +85,20 @@ fun StudioTimelineBar(
     var zoomScale by remember { mutableFloatStateOf(1.0f) }
     val pixelsPerSec = basePixelsPerSec * zoomScale
 
-    var viewportWidthPx by remember { mutableFloatStateOf(1f) }
     val safeDuration = duration.coerceAtLeast(0.1f)
+
+    // Decoupled manual dragging state to completely eliminate stuttering and fighting
+    var isDragging by remember { mutableStateOf(false) }
+    var scrubTime by remember { mutableFloatStateOf(currentTime) }
+
+    val latestCurrentTime by rememberUpdatedState(currentTime)
+    LaunchedEffect(latestCurrentTime, isDragging) {
+        if (!isDragging) {
+            scrubTime = latestCurrentTime
+        }
+    }
+
+    val activeTime = if (isDragging) scrubTime else currentTime
 
     Column(
         modifier = modifier
@@ -99,9 +114,9 @@ fun StudioTimelineBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            val textShadow = Shadow(color = Color.Black.copy(alpha = 0.85f), blurRadius = 6f)
+            val textShadow = Shadow(color = Color.Black.copy(alpha = 0.90f), blurRadius = 6f)
             Text(
-                text = formatTime(currentTime),
+                text = formatTime(activeTime),
                 color = AccentCyan,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
@@ -123,15 +138,15 @@ fun StudioTimelineBar(
             )
         }
 
-        // 2. Bar Timeline Utama
+        // 2. Bar Timeline Utama (Semi-transparan elegan)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(
-                    color = StudioDarkSurface.copy(alpha = 0.95f),
+                    color = StudioDarkSurface.copy(alpha = 0.80f),
                     shape = RoundedCornerShape(12.dp)
                 )
-                .border(1.dp, StudioBorder, RoundedCornerShape(12.dp))
+                .border(1.dp, StudioBorder.copy(alpha = 0.70f), RoundedCornerShape(12.dp))
                 .padding(horizontal = 6.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -162,7 +177,7 @@ fun StudioTimelineBar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // Tombol 1: Reset (00:00)
+                    // Tombol 1: Reset / Jump to Start (00:00)
                     IconButton(
                         onClick = onReset,
                         enabled = duration > 0f,
@@ -170,7 +185,7 @@ fun StudioTimelineBar(
                     ) {
                         Icon(
                             imageVector = Icons.Default.SkipPrevious,
-                            contentDescription = "Reset",
+                            contentDescription = "Reset / Start",
                             tint = if (duration > 0f) TextPrimary else TextMuted,
                             modifier = Modifier.size(18.dp)
                         )
@@ -190,7 +205,7 @@ fun StudioTimelineBar(
                         )
                     }
 
-                    // Tombol 3: Play / Stop (Titik Pusat / Center Anchor)
+                    // Tombol 3: Play / Stop (Center Anchor)
                     FilledIconButton(
                         onClick = onPlayPause,
                         enabled = duration > 0f,
@@ -221,7 +236,7 @@ fun StudioTimelineBar(
                         )
                     }
 
-                    // Tombol 5: Ke Akhir (Skip to End)
+                    // Tombol 5: Jump to End (Ke Akhir)
                     IconButton(
                         onClick = onSkipToEnd,
                         enabled = duration > 0f,
@@ -229,7 +244,7 @@ fun StudioTimelineBar(
                     ) {
                         Icon(
                             imageVector = Icons.Default.SkipNext,
-                            contentDescription = "To End",
+                            contentDescription = "Jump to End",
                             tint = if (duration > 0f) TextPrimary else TextMuted,
                             modifier = Modifier.size(18.dp)
                         )
@@ -268,16 +283,15 @@ fun StudioTimelineBar(
                     .fillMaxWidth()
                     .height(44.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0xFF0C0E14))
-                    .border(1.dp, StudioBorder, RoundedCornerShape(6.dp))
-                    .onSizeChanged { size ->
-                        viewportWidthPx = size.width.toFloat().coerceAtLeast(1f)
-                    }
+                    .background(Color(0xFF0C0E14).copy(alpha = 0.75f))
+                    .border(1.dp, StudioBorder.copy(alpha = 0.65f), RoundedCornerShape(6.dp))
                     .pointerInput(safeDuration, pixelsPerSec) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
-                            val startX = down.position.x
-                            val startTime = currentTime
+                            isDragging = true
+                            scrubTime = activeTime
+                            var prevX = down.position.x
+                            var totalDistance = 0f
 
                             while (true) {
                                 val event = awaitPointerEvent()
@@ -285,13 +299,31 @@ fun StudioTimelineBar(
                                 if (active.isEmpty()) break
 
                                 val currentX = active[0].position.x
-                                val dx = currentX - startX
-                                // Geser track ke kiri (dx < 0) = maju waktu; geser ke kanan (dx > 0) = mundur waktu
-                                val scrubTime = (startTime - dx / pixelsPerSec).coerceIn(0f, safeDuration)
-                                onSeek(scrubTime)
+                                val dx = currentX - prevX
+                                prevX = currentX
+                                totalDistance += abs(dx)
+
+                                if (abs(dx) > 0.001f) {
+                                    // Geser track ke kiri (dx < 0) = maju waktu; geser ke kanan (dx > 0) = mundur waktu
+                                    val dt = -dx / pixelsPerSec
+                                    val newTime = (scrubTime + dt).coerceIn(0f, safeDuration)
+                                    scrubTime = newTime
+                                    onSeek(newTime)
+                                }
 
                                 event.changes.forEach { it.consume() }
                             }
+
+                            // Tap seek jika pengguna hanya mengetuk tanpa drag (< 6px movement)
+                            if (totalDistance < 6f) {
+                                val centerX = size.width / 2f
+                                val tappedTime = (scrubTime + (down.position.x - centerX) / pixelsPerSec).coerceIn(0f, safeDuration)
+                                scrubTime = tappedTime
+                                onSeek(tappedTime)
+                            }
+
+                            isDragging = false
+                            onSeek(scrubTime)
                         }
                     }
             ) {
@@ -309,13 +341,13 @@ fun StudioTimelineBar(
                         val minorStep = if (pixelsPerSec > 100f) 0.2f else 0.5f
 
                         // 1. Shaded Track Background (Range 0s..duration)
-                        val xTrackStart = centerX - currentTime * pixelsPerSec
-                        val xTrackEnd = centerX + (safeDuration - currentTime) * pixelsPerSec
+                        val xTrackStart = centerX - activeTime * pixelsPerSec
+                        val xTrackEnd = centerX + (safeDuration - activeTime) * pixelsPerSec
                         val clipLeft = xTrackStart.coerceAtLeast(0f)
                         val clipRight = xTrackEnd.coerceAtMost(size.width)
                         if (clipRight > clipLeft) {
                             drawRect(
-                                color = Color(0xFF131722),
+                                color = Color(0xFF131722).copy(alpha = 0.85f),
                                 topLeft = Offset(clipLeft, 0f),
                                 size = Size(clipRight - clipLeft, size.height)
                             )
@@ -324,10 +356,10 @@ fun StudioTimelineBar(
                         // 2. Minor ticks
                         var t = 0f
                         while (t <= safeDuration) {
-                            val x = centerX + (t - currentTime) * pixelsPerSec
+                            val x = centerX + (t - activeTime) * pixelsPerSec
                             if (x in -10f..size.width + 10f) {
                                 drawLine(
-                                    color = Color(0xFF1E2330),
+                                    color = Color(0xFF262C3D).copy(alpha = 0.70f),
                                     start = Offset(x, 0f),
                                     end = Offset(x, 10f),
                                     strokeWidth = 1.dp.toPx()
@@ -338,10 +370,10 @@ fun StudioTimelineBar(
 
                         // 3. Major second ticks and labels
                         for (s in 0..totalSeconds) {
-                            val x = centerX + (s - currentTime) * pixelsPerSec
+                            val x = centerX + (s - activeTime) * pixelsPerSec
                             if (x in -30f..size.width + 30f) {
                                 drawLine(
-                                    color = Color(0xFF384055),
+                                    color = Color(0xFF4A5568).copy(alpha = 0.85f),
                                     start = Offset(x, 0f),
                                     end = Offset(x, 22f),
                                     strokeWidth = 1.5.dp.toPx()
